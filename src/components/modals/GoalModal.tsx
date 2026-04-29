@@ -22,6 +22,7 @@ export function GoalModal({ open, onClose, onSaved }: Props) {
     const t = parseFloat(target);
     if (!Number.isFinite(t) || t <= 0) { setErr('Target must be positive'); return; }
     const s = parseFloat(saved) || 0;
+    if (s < 0) { setErr('Saved amount cannot be negative'); return; }
     setBusy(true); setErr(null);
     try {
       await insertRow('savings_goals', userId, {

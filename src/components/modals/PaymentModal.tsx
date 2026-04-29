@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/Modal';
 import { Field, Input, Select, FormError, FormActions } from '@/components/Form';
 import { insertRow, todayISO } from '@/lib/mutate';
@@ -14,13 +14,21 @@ interface Props {
 
 export function PaymentModal({ open, onClose, onSaved, cards }: Props) {
   const userId = useUserId();
-  const creditCards = cards.filter(c => c.card_type === 'credit');
-  const [cardId, setCardId] = useState(creditCards[0]?.id ?? '');
+  const creditCards = useMemo(() => cards.filter(c => c.card_type === 'credit'), [cards]);
+  const [cardId, setCardId] = useState('');
   const [amount, setAmount] = useState('');
   const [date,   setDate]   = useState(() => todayISO());
   const [note,   setNote]   = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // When the modal opens (or when cards arrive late after first mount),
+  // pre-select the first credit card and reset the date to today.
+  useEffect(() => {
+    if (!open) return;
+    setDate(todayISO());
+    if (!cardId && creditCards[0]) setCardId(creditCards[0].id);
+  }, [open, cardId, creditCards]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,6 +36,7 @@ export function PaymentModal({ open, onClose, onSaved, cards }: Props) {
     if (!cardId) { setErr('Pick a card'); return; }
     const amt = parseFloat(amount);
     if (!Number.isFinite(amt) || amt <= 0) { setErr('Amount must be positive'); return; }
+    if (!date) { setErr('Date required'); return; }
     setBusy(true); setErr(null);
     try {
       await insertRow('card_payments', userId, {

@@ -23,7 +23,9 @@ export default function Finance() {
   const [showIncome, setShowIncome]   = useState(false);
   const [showBalance, setShowBalance] = useState(false);
 
-  const now = new Date();
+  // Stable `now` for the lifetime of this screen — recreating it inline
+  // would invalidate every useMemo below on every render.
+  const now = useMemo(() => new Date(), []);
   const thisMonthLabel = fmtMonth(now);
 
   const monthIncome = useMemo(

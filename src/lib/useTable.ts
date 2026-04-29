@@ -13,7 +13,11 @@ interface State<T> {
  *  so the heavy `transactions` table doesn't accidentally pull the full
  *  history into memory; bump per call when a screen needs more.
  *
- *  Call the returned `refetch()` after a write to re-pull the table. */
+ *  Auto-refetches when the auth session changes (sign-in / sign-out)
+ *  because RLS on the linked Supabase project filters per-user — without
+ *  this, post-OAuth the screens would stay stuck on the empty result set
+ *  fetched before the session existed. Call the returned `refetch()`
+ *  after a write to re-pull the table on demand. */
 export function useTable<T>(
   table: string,
   opts: {
@@ -30,6 +34,14 @@ export function useTable<T>(
   const [tick, setTick] = useState(0);
 
   const refetch = useCallback(() => setTick(t => t + 1), []);
+
+  // Bump tick whenever the auth state changes so RLS-filtered rows re-pull.
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      setTick(t => t + 1);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

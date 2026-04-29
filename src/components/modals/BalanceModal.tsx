@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal } from '@/components/Modal';
 import { Field, Input, Select, FormError, FormActions } from '@/components/Form';
 import { upsertRow } from '@/lib/mutate';
@@ -14,11 +14,18 @@ interface Props {
 
 export function BalanceModal({ open, onClose, onSaved, cards }: Props) {
   const userId = useUserId();
-  const [cardId,    setCardId]    = useState(cards[0]?.id ?? '');
+  const [cardId,    setCardId]    = useState('');
   const [balance,   setBalance]   = useState('');
   const [statement, setStatement] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Pre-select the first card when the modal opens (or when cards arrive
+  // after first mount). Avoids a stale empty default from the original
+  // useState initializer running before the parent's useTable resolved.
+  useEffect(() => {
+    if (open && !cardId && cards[0]) setCardId(cards[0].id);
+  }, [open, cardId, cards]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

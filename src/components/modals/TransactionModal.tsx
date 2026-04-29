@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal } from '@/components/Modal';
 import { Field, Input, Select, FormError, FormActions } from '@/components/Form';
 import { insertRow, todayISO } from '@/lib/mutate';
@@ -29,12 +29,20 @@ export function TransactionModal({ open, onClose, onSaved, cards }: Props) {
     setErr(null);
   }
 
+  // Re-init date to *today* whenever the modal opens — the lazy useState
+  // initializer only runs on first mount, so a long-lived session that
+  // crosses midnight would otherwise default to yesterday.
+  useEffect(() => {
+    if (open) setDate(todayISO());
+  }, [open]);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!userId) { setErr('Not signed in'); return; }
     const amt = parseFloat(amount);
     if (!Number.isFinite(amt) || amt <= 0) { setErr('Amount must be positive'); return; }
     if (!merchant.trim()) { setErr('Merchant required'); return; }
+    if (!date) { setErr('Date required'); return; }
     setBusy(true); setErr(null);
     try {
       await insertRow('transactions', userId, {

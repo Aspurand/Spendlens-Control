@@ -32,11 +32,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function signIn() {
+    // Always redirect to the app's base URL — never the current pathname.
+    // Otherwise signing in from `/dashboard` (or any deep route) sends the
+    // OAuth callback to a URL the user would also need to allowlist in
+    // Supabase. BASE_URL is `/` in dev and `/Spendlens-Control/` in prod.
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         scopes: 'email profile',
-        redirectTo: window.location.origin + window.location.pathname,
+        redirectTo: window.location.origin + import.meta.env.BASE_URL,
         queryParams: { access_type: 'offline', prompt: 'consent' },
       },
     });
