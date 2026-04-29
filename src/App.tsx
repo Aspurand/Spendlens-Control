@@ -1,16 +1,14 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Sidebar } from '@/components/Sidebar';
-import {
-  Dashboard,
-  Finance,
-  CashFlow,
-  Goals,
-  Debt,
-  Payments,
-  Budget,
-  Optimizer,
-  Settings,
-} from '@/screens/_placeholders';
+import Dashboard from '@/screens/Dashboard';
+import Finance   from '@/screens/Finance';
+import CashFlow  from '@/screens/CashFlow';
+import Goals     from '@/screens/Goals';
+import Debt      from '@/screens/Debt';
+import Payments  from '@/screens/Payments';
+import Budget    from '@/screens/Budget';
+import Optimizer from '@/screens/Optimizer';
+import Settings  from '@/screens/Settings';
 
 export default function App() {
   return (

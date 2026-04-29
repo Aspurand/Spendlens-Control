@@ -1,45 +1,85 @@
-/* Design tokens — placeholder palette inherited from the Counting-Admin
-   shell so the layout renders sensibly until the SpendLens design system
-   lands. Expect every value here to be re-skinned. */
+/* SpendLens design tokens — ported from the phone app's "Woody Edition"
+   palette so Control matches at the visual level. Keep both apps in
+   lockstep when changing values; the phone app source of truth lives in
+   the inline <style> block at the top of Spendlens/index.html. */
 
 :root {
-  /* Canvas / surfaces */
-  --canvas:       #FAF6F1;
-  --surface:      #FFFFFF;
-  --surface-alt:  #F4EFE8;
-  --border:       #E6E0D6;
-  --border-strong:#D7CFBF;
-  --shadow-sm:    0 1px 2px rgba(13, 10, 8, 0.06);
-  --shadow-md:    0 4px 12px rgba(13, 10, 8, 0.08);
+  /* Surfaces — daylight ledger */
+  --bg:             #F6F2EA;
+  --bg-card:        #FFFDF7;
+  --bg-card-hover:  #F0EADE;
+  --bg-input:       #FFFDF7;
+  --bg-elev:        #FAF5EB;
+  --border:         #E6DFD0;
+  --border-strong:  #D4CAB3;
 
   /* Foreground */
-  --fg-primary:   #0D0A08;
-  --fg-secondary: #3B3632;
-  --fg-muted:     #7A736A;
-  --fg-faint:     #A9A197;
+  --text:           #1C1B18;
+  --text-dim:       #6B6558;
+  --text-muted:     #9A9283;
 
-  /* Ink (dark scale) */
-  --dark-900: #0D0A08;
-  --dark-800: #221D18;
-  --dark-700: #3A322A;
+  /* Accent — copper */
+  --accent:         #B8532B;
+  --accent-ink:     #7A3518;
+  --accent-soft:    #F5E4D9;
+  --accent-glow:    rgba(184, 83, 43, 0.18);
 
-  /* Off-white (cream scale) */
-  --off-100: #FFF9F5;
-  --off-200: #F4EFE8;
+  /* Semantic */
+  --green:          #1F6B4E;
+  --green-soft:     #DBEBDF;
+  --red:            #B83232;
+  --red-soft:       #F3DCD7;
+  --amber:          #B8851F;
+  --amber-soft:     #F0E4C2;
+  --blue:           #2E5C8A;
+  --blue-soft:      #D8E4EE;
+  --violet:         #5E3E7A;
+  --violet-soft:    #E3D6EB;
 
-  /* Accents — provisional. Replace when SpendLens palette is defined. */
-  --accent-300: #C9A24C;
-  --accent-400: #9F7F38;
+  /* Geometry */
+  --radius:    14px;
+  --radius-sm: 10px;
+  --radius-lg: 20px;
 
-  --raspberry-100: #F7D9E0;
-  --raspberry-300: #C13A57;
-  --raspberry-400: #8F2842;
+  /* Type */
+  --font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-sans:  'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono:  'JetBrains Mono', ui-monospace, monospace;
 
-  --teal-100: #D7EAE6;
-  --teal-300: #3F7D73;
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(28, 27, 24, 0.06);
+  --shadow-md: 0 4px 12px rgba(28, 27, 24, 0.08);
+}
 
-  /* Type scale */
-  --text-headline-md: 600 22px/1.2 'DM Sans', system-ui, sans-serif;
-  --text-body:        400 14px/1.55 'DM Sans', system-ui, sans-serif;
-  --text-mono:        500 12px/1.4 'JetBrains Mono', ui-monospace, monospace;
+[data-theme="dark"] {
+  --bg:             #101011;
+  --bg-card:        #1A1A1C;
+  --bg-card-hover:  #232325;
+  --bg-input:       #1A1A1C;
+  --bg-elev:        #1F1F21;
+  --border:         #2A2A2C;
+  --border-strong:  #3C3C3E;
+
+  --text:           #F2F0EC;
+  --text-dim:       #A5A5A7;
+  --text-muted:     #6A6A6C;
+
+  --accent:         #D97A52;
+  --accent-ink:     #F4B89A;
+  --accent-soft:    rgba(217, 122, 82, 0.14);
+  --accent-glow:    rgba(217, 122, 82, 0.32);
+
+  --green:       #4BC2A8;
+  --green-soft:  rgba(75, 194, 168, 0.14);
+  --red:         #F06292;
+  --red-soft:    rgba(240, 98, 146, 0.14);
+  --amber:       #E2B95D;
+  --amber-soft:  rgba(226, 185, 93, 0.14);
+  --blue:        #7BAED9;
+  --blue-soft:   rgba(123, 174, 217, 0.14);
+  --violet:      #B69BD4;
+  --violet-soft: rgba(182, 155, 212, 0.14);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
