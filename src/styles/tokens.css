@@ -1,0 +1,45 @@
+/* Design tokens — placeholder palette inherited from the Counting-Admin
+   shell so the layout renders sensibly until the SpendLens design system
+   lands. Expect every value here to be re-skinned. */
+
+:root {
+  /* Canvas / surfaces */
+  --canvas:       #FAF6F1;
+  --surface:      #FFFFFF;
+  --surface-alt:  #F4EFE8;
+  --border:       #E6E0D6;
+  --border-strong:#D7CFBF;
+  --shadow-sm:    0 1px 2px rgba(13, 10, 8, 0.06);
+  --shadow-md:    0 4px 12px rgba(13, 10, 8, 0.08);
+
+  /* Foreground */
+  --fg-primary:   #0D0A08;
+  --fg-secondary: #3B3632;
+  --fg-muted:     #7A736A;
+  --fg-faint:     #A9A197;
+
+  /* Ink (dark scale) */
+  --dark-900: #0D0A08;
+  --dark-800: #221D18;
+  --dark-700: #3A322A;
+
+  /* Off-white (cream scale) */
+  --off-100: #FFF9F5;
+  --off-200: #F4EFE8;
+
+  /* Accents — provisional. Replace when SpendLens palette is defined. */
+  --accent-300: #C9A24C;
+  --accent-400: #9F7F38;
+
+  --raspberry-100: #F7D9E0;
+  --raspberry-300: #C13A57;
+  --raspberry-400: #8F2842;
+
+  --teal-100: #D7EAE6;
+  --teal-300: #3F7D73;
+
+  /* Type scale */
+  --text-headline-md: 600 22px/1.2 'DM Sans', system-ui, sans-serif;
+  --text-body:        400 14px/1.55 'DM Sans', system-ui, sans-serif;
+  --text-mono:        500 12px/1.4 'JetBrains Mono', ui-monospace, monospace;
+}
