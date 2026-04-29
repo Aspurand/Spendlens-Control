@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { useTable } from '@/lib/useTable';
 import { money, num, fmtMonth, pct } from '@/lib/format';
 import { Card, Transaction, CardBalance, Budget, categoryIcon, categoryLabel } from '@/lib/types';
+import { TransactionModal } from '@/components/modals/TransactionModal';
+import { useUserId } from '@/lib/auth';
 
 /** Build a month key (YYYY-MM) in Pacific time so it lines up with how
  *  the phone app groups transactions. */
@@ -24,6 +26,8 @@ export default function Dashboard() {
   const balances  = useTable<CardBalance>('card_balances');
   const budgets   = useTable<Budget>('budgets');
 
+  const userId = useUserId();
+  const [showAdd, setShowAdd] = useState(false);
   const [cursor, setCursor] = useState(() => new Date());
   const cursorKey = monthKey(cursor);
   const cursorLabel = fmtMonth(cursor);
@@ -103,8 +107,16 @@ export default function Dashboard() {
           <span className="pill">{cursorLabel}</span>
           <button className="btn btn-ghost" onClick={() => shiftMonth(1)} aria-label="Next month">›</button>
           <button className="btn" onClick={() => setCursor(new Date())}>Today</button>
+          <button className="btn btn-primary" onClick={() => setShowAdd(true)} disabled={!userId}>+ Transaction</button>
         </div>
       </div>
+
+      <TransactionModal
+        open={showAdd}
+        onClose={() => setShowAdd(false)}
+        onSaved={() => { txs.refetch(); }}
+        cards={cards.data}
+      />
 
       <div className="content">
         {/* HERO */}

@@ -1,10 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTable } from '@/lib/useTable';
 import { money, num, pct, fmtMonth } from '@/lib/format';
 import {
   Transaction, Subscription, Budget as BudgetRow, Card,
   CATEGORY_META, categoryIcon, categoryLabel,
 } from '@/lib/types';
+import { BudgetModal } from '@/components/modals/BudgetModal';
+import { SubscriptionModal } from '@/components/modals/SubscriptionModal';
+import { useUserId } from '@/lib/auth';
 
 function isThisMonth(dateStr: string): boolean {
   const fmt = new Intl.DateTimeFormat('en-CA', {
@@ -18,6 +21,9 @@ export default function BudgetScreen() {
   const subs    = useTable<Subscription>('subscriptions');
   const budgets = useTable<BudgetRow>('budgets');
   const cards   = useTable<Card>('cards');
+  const userId = useUserId();
+  const [showBudget, setShowBudget] = useState(false);
+  const [showSub,    setShowSub]    = useState(false);
 
   const monthLabel = fmtMonth(new Date());
 
@@ -75,10 +81,22 @@ export default function BudgetScreen() {
           <h1>Budget &amp; Subscriptions</h1>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn">+ Set Budget</button>
-          <button className="btn btn-primary">+ Subscription</button>
+          <button className="btn" onClick={() => setShowBudget(true)} disabled={!userId}>+ Set Budget</button>
+          <button className="btn btn-primary" onClick={() => setShowSub(true)} disabled={!userId}>+ Subscription</button>
         </div>
       </div>
+
+      <BudgetModal
+        open={showBudget}
+        onClose={() => setShowBudget(false)}
+        onSaved={() => { budgets.refetch(); }}
+      />
+      <SubscriptionModal
+        open={showSub}
+        onClose={() => setShowSub(false)}
+        onSaved={() => { subs.refetch(); }}
+        cards={cards.data}
+      />
 
       <div className="content">
         {/* OVERALL */}

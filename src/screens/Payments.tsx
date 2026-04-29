@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTable } from '@/lib/useTable';
 import { money, num, fmtMonth } from '@/lib/format';
 import { Card, CardPayment } from '@/lib/types';
+import { PaymentModal } from '@/components/modals/PaymentModal';
+import { useUserId } from '@/lib/auth';
 
 function isThisMonth(dateStr: string): boolean {
   const fmt = new Intl.DateTimeFormat('en-CA', {
@@ -13,6 +15,8 @@ function isThisMonth(dateStr: string): boolean {
 export default function Payments() {
   const cards    = useTable<Card>('cards', { orderBy: 'created_at' });
   const payments = useTable<CardPayment>('card_payments', { orderBy: 'payment_date', ascending: false });
+  const userId = useUserId();
+  const [showAdd, setShowAdd] = useState(false);
 
   const cardById = useMemo(() => {
     const m = new Map<string, Card>();
@@ -48,8 +52,15 @@ export default function Payments() {
           <div className="eyebrow">Planning</div>
           <h1>Card Payments</h1>
         </div>
-        <button className="btn btn-primary">+ Log Payment</button>
+        <button className="btn btn-primary" onClick={() => setShowAdd(true)} disabled={!userId}>+ Log Payment</button>
       </div>
+
+      <PaymentModal
+        open={showAdd}
+        onClose={() => setShowAdd(false)}
+        onSaved={() => { payments.refetch(); }}
+        cards={cards.data}
+      />
 
       <div className="content">
         <div className="grid-3">

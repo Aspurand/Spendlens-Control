@@ -1,11 +1,16 @@
+import { useState } from 'react';
 import { useTable } from '@/lib/useTable';
 import { APP_VERSION } from '@/lib/version';
 import { SUPABASE_URL } from '@/lib/supabase';
 import { Card, SyncHistoryRow } from '@/lib/types';
+import { CardModal } from '@/components/modals/CardModal';
+import { useUserId } from '@/lib/auth';
 
 export default function Settings() {
   const cards = useTable<Card>('cards', { orderBy: 'created_at', ascending: true });
   const sync  = useTable<SyncHistoryRow>('sync_history', { orderBy: 'synced_at', ascending: false, limit: 25 });
+  const userId = useUserId();
+  const [showAdd, setShowAdd] = useState(false);
 
   return (
     <>
@@ -51,8 +56,14 @@ export default function Settings() {
           )}
         </div>
         <div style={{ marginTop: 12 }}>
-          <button className="btn btn-primary">+ Add New Card</button>
+          <button className="btn btn-primary" onClick={() => setShowAdd(true)} disabled={!userId}>+ Add New Card</button>
         </div>
+
+        <CardModal
+          open={showAdd}
+          onClose={() => setShowAdd(false)}
+          onSaved={() => { cards.refetch(); }}
+        />
 
         <div className="section-title">Sync History</div>
         <div className="card" style={{ padding: 0 }}>

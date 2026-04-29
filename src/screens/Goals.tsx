@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTable } from '@/lib/useTable';
 import { money, num, pct } from '@/lib/format';
 import { SavingsGoal, IncomeEntry } from '@/lib/types';
+import { GoalModal } from '@/components/modals/GoalModal';
+import { useUserId } from '@/lib/auth';
 
 function daysUntil(target: string | null): number | null {
   if (!target) return null;
@@ -14,6 +16,8 @@ function daysUntil(target: string | null): number | null {
 export default function Goals() {
   const goals = useTable<SavingsGoal>('savings_goals', { orderBy: 'created_at', ascending: true });
   const inc   = useTable<IncomeEntry>('income_entries');
+  const userId = useUserId();
+  const [showAdd, setShowAdd] = useState(false);
 
   const totalTarget = goals.data.reduce((s, g) => s + num(g.target_amount), 0);
   const totalSaved  = goals.data.reduce((s, g) => s + num(g.saved_amount),  0);
@@ -38,8 +42,14 @@ export default function Goals() {
           <div className="eyebrow">Planning</div>
           <h1>Savings Goals</h1>
         </div>
-        <button className="btn btn-primary">+ New Goal</button>
+        <button className="btn btn-primary" onClick={() => setShowAdd(true)} disabled={!userId}>+ New Goal</button>
       </div>
+
+      <GoalModal
+        open={showAdd}
+        onClose={() => setShowAdd(false)}
+        onSaved={() => { goals.refetch(); }}
+      />
 
       <div className="content">
         <div className="grid-3">

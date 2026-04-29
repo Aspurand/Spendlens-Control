@@ -1,7 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTable } from '@/lib/useTable';
 import { money, num, fmtMonth } from '@/lib/format';
 import { Card, Transaction, CardBalance, IncomeEntry } from '@/lib/types';
+import { IncomeModal } from '@/components/modals/IncomeModal';
+import { BalanceModal } from '@/components/modals/BalanceModal';
+import { useUserId } from '@/lib/auth';
 
 function isThisMonth(dateStr: string, ref = new Date()): boolean {
   const fmt = new Intl.DateTimeFormat('en-CA', {
@@ -15,6 +18,10 @@ export default function Finance() {
   const txs      = useTable<Transaction>('transactions', { orderBy: 'tx_date', ascending: false, limit: 5000 });
   const balances = useTable<CardBalance>('card_balances');
   const income   = useTable<IncomeEntry>('income_entries', { orderBy: 'income_date', ascending: false });
+
+  const userId = useUserId();
+  const [showIncome, setShowIncome]   = useState(false);
+  const [showBalance, setShowBalance] = useState(false);
 
   const now = new Date();
   const thisMonthLabel = fmtMonth(now);
@@ -78,8 +85,23 @@ export default function Finance() {
           <div className="eyebrow">Main</div>
           <h1>Finance Hub</h1>
         </div>
-        <button className="btn btn-primary">+ Income</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn" onClick={() => setShowBalance(true)} disabled={!userId}>Update Balance</button>
+          <button className="btn btn-primary" onClick={() => setShowIncome(true)} disabled={!userId}>+ Income</button>
+        </div>
       </div>
+
+      <IncomeModal
+        open={showIncome}
+        onClose={() => setShowIncome(false)}
+        onSaved={() => { income.refetch(); }}
+      />
+      <BalanceModal
+        open={showBalance}
+        onClose={() => setShowBalance(false)}
+        onSaved={() => { balances.refetch(); }}
+        cards={cards.data}
+      />
 
       <div className="content">
         {/* HERO row: 4 stats */}

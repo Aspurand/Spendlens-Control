@@ -1,16 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from './supabase';
 
 interface State<T> {
   data: T[];
   loading: boolean;
   error: string | null;
+  refetch: () => void;
 }
 
 /** Fetch a Supabase table once on mount. Loose typing on purpose — each
  *  caller asserts the row shape it expects. Pagination caps at 5000 rows
  *  so the heavy `transactions` table doesn't accidentally pull the full
- *  history into memory; bump per call when a screen needs more. */
+ *  history into memory; bump per call when a screen needs more.
+ *
+ *  Call the returned `refetch()` after a write to re-pull the table. */
 export function useTable<T>(
   table: string,
   opts: {
@@ -21,20 +24,27 @@ export function useTable<T>(
   } = {},
 ): State<T> {
   const { select = '*', orderBy, ascending = false, limit = 5000 } = opts;
-  const [state, setState] = useState<State<T>>({ data: [], loading: true, error: null });
+  const [data, setData] = useState<T[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
+
+  const refetch = useCallback(() => setTick(t => t + 1), []);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     (async () => {
       let q = supabase.from(table).select(select).limit(limit);
       if (orderBy) q = q.order(orderBy, { ascending });
       const { data, error } = await q;
       if (cancelled) return;
-      if (error) setState({ data: [], loading: false, error: error.message });
-      else setState({ data: (data ?? []) as T[], loading: false, error: null });
+      if (error) { setData([]); setError(error.message); }
+      else      { setData((data ?? []) as T[]); setError(null); }
+      setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [table, select, orderBy, ascending, limit]);
+  }, [table, select, orderBy, ascending, limit, tick]);
 
-  return state;
+  return { data, loading, error, refetch };
 }
