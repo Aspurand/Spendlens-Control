@@ -16,12 +16,12 @@ const Ctx = createContext<AuthState | null>(null);
  *  Mirrors the phone app's auth flow (signInWithOAuth, provider: google)
  *  so the same RLS-aligned user_id lands in `session.user.id`.
  *
- *  We add an explicit `?code=` exchange on mount as a belt-and-braces
- *  fallback for the OAuth callback. Supabase's `detectSessionInUrl`
- *  default *should* handle this, but if it races the React boot or
- *  fails silently the session never lands and the user appears stuck
- *  signed-out after a successful Google flow. The explicit exchange
- *  makes the failure mode loud (sets `error`) instead of silent. */
+ *  We disable Supabase's `detectSessionInUrl` and do the exchange
+ *  ourselves: the auto-detect runs at `createClient` time (module load),
+ *  which races React's boot. Any failure in that race is silently
+ *  swallowed. Owning the flow here makes errors loud (set on `error`
+ *  and rendered by the Sidebar) instead of leaving the user stuck on
+ *  a "stuck signed-out" screen with no feedback. */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,43 +30,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
-    async function consumeOAuthCallback() {
+    async function boot() {
       const url = new URL(window.location.href);
-      const code = url.searchParams.get('code');
-      const errCode = url.searchParams.get('error') || url.searchParams.get('error_code');
-      const errDesc = url.searchParams.get('error_description');
+      const code      = url.searchParams.get('code');
+      const errCode   = url.searchParams.get('error') ?? url.searchParams.get('error_code');
+      const errDesc   = url.searchParams.get('error_description');
+
       if (errCode) {
-        setError(`${errCode}${errDesc ? ': ' + errDesc : ''}`);
-      }
-      if (code) {
+        setError(`OAuth error: ${errCode}${errDesc ? ' — ' + decodeURIComponent(errDesc) : ''}`);
+      } else if (code) {
         try {
           const { error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) setError('Sign-in failed: ' + error.message);
         } catch (e) {
-          // detectSessionInUrl may have already consumed the code — ignore
-          if (e instanceof Error && /code/i.test(e.message)) { /* expected race */ }
-          else setError('Sign-in failed: ' + (e instanceof Error ? e.message : String(e)));
-        } finally {
-          // Strip OAuth params from the URL so a refresh doesn't re-attempt.
-          url.searchParams.delete('code');
-          url.searchParams.delete('error');
-          url.searchParams.delete('error_code');
-          url.searchParams.delete('error_description');
-          url.hash = '';
-          window.history.replaceState(null, '', url.toString());
+          setError('Sign-in failed: ' + (e instanceof Error ? e.message : String(e)));
         }
       }
-    }
 
-    (async () => {
-      await consumeOAuthCallback();
+      // Strip OAuth params from the URL so a refresh doesn't replay.
+      if (code || errCode) {
+        url.searchParams.delete('code');
+        url.searchParams.delete('error');
+        url.searchParams.delete('error_code');
+        url.searchParams.delete('error_description');
+        url.searchParams.delete('state');
+        url.hash = '';
+        window.history.replaceState(null, '', url.toString());
+      }
+
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;
       setSession(data.session);
       setLoading(false);
-    })();
+    }
+
+    boot();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
+      if (cancelled) return;
       setSession(s);
       setLoading(false);
     });

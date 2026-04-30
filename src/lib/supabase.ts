@@ -13,11 +13,11 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    // PKCE returns ?code= on the redirect URL (not #access_token=) which
-    // we explicitly exchange in AuthProvider as a safety net — see the
-    // useEffect there for why we don't rely on detectSessionInUrl alone.
     flowType: 'pkce',
-    detectSessionInUrl: true,
+    // We handle the OAuth callback ourselves in AuthProvider — see the
+    // useEffect there for why. Auto-detection on createClient races the
+    // React boot and any failure in that race is silently swallowed.
+    detectSessionInUrl: false,
   },
 });
 
