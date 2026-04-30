@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { APP_VERSION } from '@/lib/version';
 import { useAuth } from '@/lib/auth';
@@ -24,7 +25,18 @@ const NAV: { group: string; items: { to: string; label: string; icon: IconName }
 ];
 
 export function Sidebar() {
-  const { session, signIn, signOut, loading, error } = useAuth();
+  const { session, signIn, signInWithEmail, signOut, loading, error } = useAuth();
+  const [email, setEmail] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  async function onSendLink(e: React.FormEvent) {
+    e.preventDefault();
+    setSending(true);
+    const r = await signInWithEmail(email);
+    setSending(false);
+    if (r.sent) setSent(true);
+  }
   const user = session?.user;
   const meta = (user?.user_metadata as Record<string, unknown> | undefined) ?? {};
   const fullName = (meta.full_name as string) || (meta.name as string) || user?.email || '';
@@ -83,13 +95,62 @@ export function Sidebar() {
             </button>
           </div>
         ) : (
-          <>
-            <button onClick={signIn} className="sidebar-signin">
-              Sign in with Google
+          <div style={{ margin: '0 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {sent ? (
+              <div style={{
+                padding: '10px 12px',
+                background: 'rgba(75, 194, 168, 0.15)',
+                color: '#9DC78A',
+                borderRadius: 10,
+                fontSize: 12,
+                lineHeight: 1.4,
+              }}>
+                Check <b>{email}</b> for a one-click sign-in link.
+                <button
+                  onClick={() => { setSent(false); setEmail(''); }}
+                  style={{ display: 'block', marginTop: 6, fontSize: 11, color: 'inherit', textDecoration: 'underline', opacity: 0.8 }}
+                >
+                  Use a different email
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={onSendLink} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 8,
+                    border: '1px solid rgba(255, 249, 245, 0.15)',
+                    background: 'rgba(255, 249, 245, 0.06)',
+                    color: 'var(--off-100)',
+                    fontSize: 12.5,
+                  }}
+                />
+                <button type="submit" className="sidebar-signin" disabled={sending} style={{ margin: 0, width: '100%' }}>
+                  {sending ? 'Sending…' : 'Send sign-in link'}
+                </button>
+              </form>
+            )}
+            <button
+              onClick={signIn}
+              style={{
+                marginTop: 4,
+                padding: '6px 10px',
+                fontSize: 11.5,
+                fontWeight: 500,
+                color: 'rgba(255, 249, 245, 0.55)',
+                borderRadius: 8,
+              }}
+            >
+              or sign in with Google
             </button>
             {error && (
               <div style={{
-                margin: '8px 12px 0',
+                marginTop: 4,
                 padding: '8px 10px',
                 background: 'rgba(193, 58, 87, 0.18)',
                 color: '#F2A2B0',
@@ -100,7 +161,7 @@ export function Sidebar() {
                 {error}
               </div>
             )}
-          </>
+          </div>
         )
       )}
 

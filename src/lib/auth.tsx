@@ -6,7 +6,11 @@ interface AuthState {
   session: Session | null;
   loading: boolean;
   error: string | null;
+  /** Google OAuth (kept as a fallback). */
   signIn: () => Promise<void>;
+  /** Magic-link email sign-in. Returns `{ sent: true }` on success so
+   *  the UI can show a "check your email" state. */
+  signInWithEmail: (email: string) => Promise<{ sent: boolean; error?: string }>;
   signOut: () => Promise<void>;
 }
 
@@ -89,12 +93,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) setError('Sign-in failed: ' + error.message);
   }
 
+  async function signInWithEmail(email: string): Promise<{ sent: boolean; error?: string }> {
+    setError(null);
+    const trimmed = email.trim();
+    if (!trimmed || !/.+@.+\..+/.test(trimmed)) {
+      const msg = 'Enter a valid email';
+      setError(msg);
+      return { sent: false, error: msg };
+    }
+    const { error } = await supabase.auth.signInWithOtp({
+      email: trimmed,
+      options: {
+        emailRedirectTo: window.location.origin + import.meta.env.BASE_URL,
+        shouldCreateUser: true,
+      },
+    });
+    if (error) {
+      setError('Email sign-in failed: ' + error.message);
+      return { sent: false, error: error.message };
+    }
+    return { sent: true };
+  }
+
   async function signOut() {
     setError(null);
     await supabase.auth.signOut();
   }
 
-  return <Ctx.Provider value={{ session, loading, error, signIn, signOut }}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={{ session, loading, error, signIn, signInWithEmail, signOut }}>
+      {children}
+    </Ctx.Provider>
+  );
 }
 
 export function useAuth(): AuthState {
