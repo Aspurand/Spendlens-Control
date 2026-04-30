@@ -2,13 +2,17 @@ import { useMemo, useState } from 'react';
 import { useTable } from '@/lib/useTable';
 import { money, num, fmtMonth } from '@/lib/format';
 import { Transaction, Subscription, IncomeEntry, Card } from '@/lib/types';
+import { PageTopbar } from '@/components/PageTopbar';
+import { Icon } from '@/components/Icon';
+import { Stat } from '@/components/Stat';
 
 interface DayCell {
   date: Date;
   inMonth: boolean;
   spend: number;
   income: number;
-  upcoming: number;
+  bills: { label: string; amount: number; kind: 'subscription' | 'card-bill' }[];
+  isToday: boolean;
 }
 
 function ymd(d: Date): string {
@@ -18,31 +22,26 @@ function ymd(d: Date): string {
   }).format(d);
 }
 
-function buildGrid(monthCursor: Date): DayCell[] {
-  const first = new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1);
-  const last = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 0);
+function buildGrid(cursor: Date, todayKey: string): DayCell[] {
+  const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+  const last = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
   const startWeekday = first.getDay();
   const cells: DayCell[] = [];
 
-  // Leading days from previous month
   for (let i = startWeekday - 1; i >= 0; i--) {
     const d = new Date(first);
     d.setDate(d.getDate() - (i + 1));
-    cells.push({ date: d, inMonth: false, spend: 0, income: 0, upcoming: 0 });
+    cells.push({ date: d, inMonth: false, spend: 0, income: 0, bills: [], isToday: false });
   }
-  // This month
   for (let day = 1; day <= last.getDate(); day++) {
-    cells.push({
-      date: new Date(monthCursor.getFullYear(), monthCursor.getMonth(), day),
-      inMonth: true, spend: 0, income: 0, upcoming: 0,
-    });
+    const d = new Date(cursor.getFullYear(), cursor.getMonth(), day);
+    cells.push({ date: d, inMonth: true, spend: 0, income: 0, bills: [], isToday: ymd(d) === todayKey });
   }
-  // Trailing — pad to 6 rows × 7
-  while (cells.length % 7 !== 0 || cells.length < 42) {
-    const last = cells[cells.length - 1].date;
-    const next = new Date(last);
+  while (cells.length % 7 !== 0 || cells.length < 35) {
+    const lastDate = cells[cells.length - 1].date;
+    const next = new Date(lastDate);
     next.setDate(next.getDate() + 1);
-    cells.push({ date: next, inMonth: false, spend: 0, income: 0, upcoming: 0 });
+    cells.push({ date: next, inMonth: false, spend: 0, income: 0, bills: [], isToday: false });
     if (cells.length >= 42) break;
   }
   return cells;
@@ -51,15 +50,14 @@ function buildGrid(monthCursor: Date): DayCell[] {
 export default function CashFlow() {
   const txs   = useTable<Transaction>('transactions', { orderBy: 'tx_date', ascending: false, limit: 5000 });
   const subs  = useTable<Subscription>('subscriptions');
-  const inc   = useTable<IncomeEntry>('income_entries', { orderBy: 'income_date', ascending: false });
+  const inc   = useTable<IncomeEntry>('income_entries');
   const cards = useTable<Card>('cards');
 
   const [cursor, setCursor] = useState(() => new Date());
-  const cursorLabel = fmtMonth(cursor);
   const todayKey = ymd(new Date());
 
   const grid = useMemo(() => {
-    const g = buildGrid(cursor);
+    const g = buildGrid(cursor, todayKey);
     const idx = new Map<string, DayCell>();
     g.forEach(c => idx.set(ymd(c.date), c));
 
@@ -71,36 +69,26 @@ export default function CashFlow() {
       const cell = idx.get(i.income_date);
       if (cell) cell.income += num(i.amount);
     }
-    // Subscriptions are recurring — slot the monthly debit on `debit_day`
     for (const s of subs.data) {
-      if (!s.active || !s.debit_day) continue;
+      if (!s.active || s.debit_day == null) continue;
       const cell = g.find(c => c.inMonth && c.date.getDate() === s.debit_day);
-      if (cell) cell.upcoming += num(s.amount);
+      if (cell) cell.bills.push({ label: s.name, amount: num(s.amount), kind: 'subscription' });
+    }
+    // Card bills on the credit card's pay_due_day
+    for (const c of cards.data) {
+      if (c.card_type !== 'credit' || c.pay_due_day == null) continue;
+      const cell = g.find(cc => cc.inMonth && cc.date.getDate() === c.pay_due_day);
+      if (cell) cell.bills.push({ label: c.name, amount: 0, kind: 'card-bill' });
     }
     return g;
-  }, [cursor, txs.data, inc.data, subs.data]);
+  }, [cursor, txs.data, inc.data, subs.data, cards.data, todayKey]);
 
-  const monthSpend  = grid.filter(c => c.inMonth).reduce((s, c) => s + c.spend, 0);
-  const monthIncome = grid.filter(c => c.inMonth).reduce((s, c) => s + c.income, 0);
-  const monthUpcoming = grid.filter(c => c.inMonth).reduce((s, c) => s + c.upcoming, 0);
+  const inMonth = grid.filter(c => c.inMonth);
+  const moneyIn = inMonth.reduce((s, c) => s + c.income, 0);
+  const moneyOut = inMonth.reduce((s, c) => s + c.spend, 0);
+  const billsTotal = inMonth.reduce((s, c) => s + c.bills.reduce((ss, b) => ss + b.amount, 0), 0);
 
-  // Upcoming list — subs sorted by day
-  const upcoming = useMemo(() => {
-    const today = new Date().getDate();
-    return subs.data
-      .filter(s => s.active && s.debit_day != null)
-      .map(s => ({ s, dayDelta: ((s.debit_day! - today) + 31) % 31 }))
-      .sort((a, b) => a.dayDelta - b.dayDelta)
-      .slice(0, 8);
-  }, [subs.data]);
-
-  const cardById = useMemo(() => {
-    const m = new Map<string, Card>();
-    for (const c of cards.data) m.set(c.id, c);
-    return m;
-  }, [cards.data]);
-
-  function shiftMonth(delta: number) {
+  function shift(delta: number) {
     setCursor(d => {
       const n = new Date(d);
       n.setMonth(n.getMonth() + delta);
@@ -110,102 +98,59 @@ export default function CashFlow() {
 
   return (
     <>
-      <div className="topbar">
-        <div>
-          <div className="eyebrow">Planning</div>
-          <h1>Cash Flow Calendar</h1>
-        </div>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <button className="btn btn-ghost" onClick={() => shiftMonth(-1)}>‹</button>
-          <span className="pill">{cursorLabel}</span>
-          <button className="btn btn-ghost" onClick={() => shiftMonth(1)}>›</button>
-          <button className="btn" onClick={() => setCursor(new Date())}>Today</button>
-        </div>
-      </div>
+      <PageTopbar
+        eyebrow="Planning"
+        title="Cash Flow Calendar"
+        sub="See every dollar coming in and going out."
+      />
 
-      <div className="content">
-        <div className="grid-3">
-          <Stat label="Income · MTD"   value={money(monthIncome)}   tone="green" />
-          <Stat label="Spend · MTD"    value={money(monthSpend)}    tone="red" />
-          <Stat label="Upcoming Subs"  value={money(monthUpcoming)} tone="amber" />
+      <div className="content page-fade">
+        <div className="row gap-16">
+          <div className="card grow"><Stat label="Money in this month" value={moneyIn} size="lg" /></div>
+          <div className="card grow"><Stat label="Money out this month" value={-moneyOut} size="lg" /></div>
+          <div className="card grow"><Stat label="Net" value={moneyIn - moneyOut} size="lg" /></div>
         </div>
 
-        <div className="section-title">Calendar</div>
         <div className="card">
-          <div className="calendar">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-              <div key={d} className="calendar-head">{d}</div>
-            ))}
-            {grid.map((c, i) => {
-              const isToday = ymd(c.date) === todayKey;
-              return (
-                <div key={i} className={`calendar-cell ${c.inMonth ? '' : 'muted'} ${isToday ? 'today' : ''}`}>
-                  <div className="calendar-day-num">{c.date.getDate()}</div>
-                  {c.inMonth && c.income > 0 && (
-                    <span className="pill green">+{money(c.income, { cents: false })}</span>
-                  )}
-                  {c.inMonth && c.spend > 0 && (
-                    <span className="pill red">−{money(c.spend, { cents: false })}</span>
-                  )}
-                  {c.inMonth && c.upcoming > 0 && (
-                    <span className="pill amber">{money(c.upcoming, { cents: false })}</span>
-                  )}
-                </div>
-              );
-            })}
+          <div className="card-head">
+            <div>
+              <div className="card-title">{fmtMonth(cursor)}</div>
+              <div className="muted small" style={{ marginTop: 4 }}>Hover any day to see what's planned.</div>
+            </div>
+            <div className="row gap-8 center">
+              <button className="btn sm" onClick={() => shift(-1)} aria-label="Previous month"><Icon name="chevronLeft" size={14} /></button>
+              <button className="btn sm" onClick={() => setCursor(new Date())}>Today</button>
+              <button className="btn sm" onClick={() => shift(1)} aria-label="Next month"><Icon name="chevronRight" size={14} /></button>
+            </div>
           </div>
-        </div>
-
-        <div className="section-title">Upcoming Subscriptions</div>
-        <div className="card" style={{ padding: 0 }}>
-          {upcoming.length === 0 ? (
-            <div className="empty-row">No active subscriptions.</div>
-          ) : (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Service</th>
-                  <th>Card</th>
-                  <th>Debit Day</th>
-                  <th>In</th>
-                  <th className="num">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {upcoming.map(({ s, dayDelta }) => {
-                  const card = s.card_id ? cardById.get(s.card_id) : undefined;
-                  return (
-                    <tr key={s.id}>
-                      <td><div style={{ fontWeight: 600 }}>{s.name}</div></td>
-                      <td>{card ? `${card.name} •••• ${card.last4}` : '—'}</td>
-                      <td className="mono">{s.debit_day}</td>
-                      <td>
-                        <span className="pill">
-                          {dayDelta === 0 ? 'Today' : `${dayDelta} day${dayDelta === 1 ? '' : 's'}`}
-                        </span>
-                      </td>
-                      <td className="num">{money(s.amount)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
+          <div className="cal">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d} className="cal-head">{d}</div>)}
+            {grid.map((c, i) => (
+              <div key={i} className={'cal-day' + (c.inMonth ? '' : ' dim') + (c.isToday ? ' today' : '')}>
+                <div className="cal-num">{c.date.getDate()}</div>
+                {c.income > 0 && (
+                  <div className="cal-event income">+{money(c.income, { cents: false })}</div>
+                )}
+                {c.spend > 0 && (
+                  <div className="cal-event">−{money(c.spend, { cents: false })}</div>
+                )}
+                {c.bills.slice(0, 2).map((b, j) => (
+                  <div key={j} className={'cal-event' + (b.kind === 'card-bill' ? ' bill' : '')}>
+                    {b.label.split(/\s+/)[0]}{b.amount > 0 ? ` ${money(b.amount, { cents: false })}` : ''}
+                  </div>
+                ))}
+                {c.bills.length > 2 && <div className="muted tiny">+{c.bills.length - 2} more</div>}
+              </div>
+            ))}
+          </div>
+          <div className="row gap-16 center" style={{ marginTop: 14 }}>
+            <span className="row center gap-8 small"><span className="cat-dot" style={{ background: 'var(--green-300)' }} />Income</span>
+            <span className="row center gap-8 small"><span className="cat-dot" style={{ background: 'var(--raspberry-300)' }} />Card bill</span>
+            <span className="row center gap-8 small"><span className="cat-dot" style={{ background: 'var(--accent-300)' }} />Subscription</span>
+            <span className="muted small" style={{ marginLeft: 'auto' }}>{billsTotal > 0 && <>Bills this month: <b>{money(billsTotal)}</b></>}</span>
+          </div>
         </div>
       </div>
     </>
-  );
-}
-
-function Stat({ label, value, tone }: { label: string; value: string; tone?: 'green' | 'red' | 'amber' }) {
-  const color = tone === 'green' ? 'var(--green)'
-              : tone === 'red'   ? 'var(--red)'
-              : tone === 'amber' ? 'var(--amber)'
-              : undefined;
-  return (
-    <div className="card">
-      <div className="stat-label">{label}</div>
-      <div className="stat-value" style={color ? { color } : undefined}>{value}</div>
-    </div>
   );
 }

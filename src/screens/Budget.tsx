@@ -1,13 +1,17 @@
 import { useMemo, useState } from 'react';
 import { useTable } from '@/lib/useTable';
-import { money, num, pct, fmtMonth } from '@/lib/format';
+import { useUserId } from '@/lib/auth';
+import { money, num, fmtMonth } from '@/lib/format';
 import {
   Transaction, Subscription, Budget as BudgetRow, Card,
-  CATEGORY_META, categoryIcon, categoryLabel,
+  CATEGORY_META, categoryLabel,
 } from '@/lib/types';
+import { PageTopbar } from '@/components/PageTopbar';
+import { Icon } from '@/components/Icon';
+import { Bar } from '@/components/Bar';
+import { catColor, catIconName } from '@/components/cats';
 import { BudgetModal } from '@/components/modals/BudgetModal';
 import { SubscriptionModal } from '@/components/modals/SubscriptionModal';
-import { useUserId } from '@/lib/auth';
 
 function isThisMonth(dateStr: string): boolean {
   const fmt = new Intl.DateTimeFormat('en-CA', {
@@ -26,21 +30,19 @@ export default function BudgetScreen() {
   const [showSub,    setShowSub]    = useState(false);
 
   const monthLabel = fmtMonth(new Date());
-
   const monthTxs = useMemo(() => txs.data.filter(t => isThisMonth(t.tx_date)), [txs.data]);
   const totalSpent = monthTxs.reduce((s, t) => s + num(t.amount), 0);
 
   const overall = budgets.data.find(b => b.key === 'overall');
   const overallLimit = overall ? num(overall.amount) : 0;
-  const overallPct = overallLimit > 0 ? pct(totalSpent, overallLimit) : 0;
+  const overallPct = overallLimit > 0 ? (totalSpent / overallLimit) * 100 : 0;
 
-  // Category budgets — keyed as `cat:<id>`
   const catBudgets = useMemo(() => {
-    const map = new Map<string, number>();
+    const m = new Map<string, number>();
     for (const b of budgets.data) {
-      if (b.key.startsWith('cat:')) map.set(b.key.slice(4), num(b.amount));
+      if (b.key.startsWith('cat:')) m.set(b.key.slice(4), num(b.amount));
     }
-    return map;
+    return m;
   }, [budgets.data]);
 
   const spentByCategory = useMemo(() => {
@@ -49,18 +51,16 @@ export default function BudgetScreen() {
     return m;
   }, [monthTxs]);
 
-  // Build a category row for every category with either a budget or spend
   const catRows = useMemo(() => {
     const ids = new Set<string>([...catBudgets.keys(), ...spentByCategory.keys()]);
     return [...ids].map(id => {
       const limit = catBudgets.get(id) ?? 0;
       const spent = spentByCategory.get(id) ?? 0;
-      const p = limit > 0 ? pct(spent, limit) : 0;
-      return { id, limit, spent, pct: p };
+      const pct = limit > 0 ? (spent / limit) * 100 : 0;
+      return { id, limit, spent, pct, over: pct > 100 };
     }).sort((a, b) => b.spent - a.spent);
   }, [catBudgets, spentByCategory]);
 
-  // Subscriptions — monthly cost (yearly / 12)
   const monthlySubCost = useMemo(() =>
     subs.data
       .filter(s => s.active)
@@ -73,135 +73,124 @@ export default function BudgetScreen() {
     return m;
   }, [cards.data]);
 
+  const totalCatBudget = [...catBudgets.values()].reduce((s, v) => s + v, 0);
+
   return (
     <>
-      <div className="topbar">
-        <div>
-          <div className="eyebrow">Spending</div>
-          <h1>Budget &amp; Subscriptions</h1>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn" onClick={() => setShowBudget(true)} disabled={!userId}>+ Set Budget</button>
-          <button className="btn btn-primary" onClick={() => setShowSub(true)} disabled={!userId}>+ Subscription</button>
-        </div>
-      </div>
-
-      <BudgetModal
-        open={showBudget}
-        onClose={() => setShowBudget(false)}
-        onSaved={() => { budgets.refetch(); }}
-      />
-      <SubscriptionModal
-        open={showSub}
-        onClose={() => setShowSub(false)}
-        onSaved={() => { subs.refetch(); }}
-        cards={cards.data}
+      <PageTopbar
+        eyebrow="Spending"
+        title="Budget & Subscriptions"
+        sub="Where your money lives."
+        right={
+          <>
+            <button className="btn" onClick={() => setShowSub(true)} disabled={!userId}>
+              <Icon name="plus" size={14} /> Subscription
+            </button>
+            <button className="btn primary" onClick={() => setShowBudget(true)} disabled={!userId}>
+              <Icon name="plus" size={14} /> New budget
+            </button>
+          </>
+        }
       />
 
-      <div className="content">
-        {/* OVERALL */}
-        <div className="card card-hero" style={{ marginBottom: 20 }}>
-          <div style={{ flex: 1 }}>
-            <div className="hero-label">Overall · {monthLabel}</div>
-            <div className="hero-amount">{money(totalSpent)}</div>
-            <div className="hero-sub">
-              {overallLimit > 0 ? (
-                <>of {money(overallLimit, { cents: false })} budgeted · <strong>{money(Math.max(0, overallLimit - totalSpent), { cents: false })}</strong> remaining</>
-              ) : (
-                <>No overall budget set</>
+      <BudgetModal open={showBudget} onClose={() => setShowBudget(false)}
+                   onSaved={() => { budgets.refetch(); }} />
+      <SubscriptionModal open={showSub} onClose={() => setShowSub(false)}
+                         onSaved={() => { subs.refetch(); }} cards={cards.data} />
+
+      <div className="content page-fade">
+        <div className="row gap-16">
+          <div className="card grow">
+            <div className="card-title">Total budget</div>
+            <div className="row between" style={{ marginTop: 6, alignItems: 'flex-end' }}>
+              <div className="num" style={{ fontSize: 32, fontWeight: 600 }}>
+                {money(totalSpent)}
+                {(overallLimit || totalCatBudget) > 0 && (
+                  <span className="muted" style={{ fontSize: 16, fontWeight: 500 }}>
+                    {' '}of {money(overallLimit || totalCatBudget, { cents: false })}
+                  </span>
+                )}
+              </div>
+              {(overallLimit || totalCatBudget) > 0 && (
+                <div className="chip">{Math.round(overallPct || (totalSpent / totalCatBudget) * 100)}% used</div>
               )}
             </div>
-            {overallLimit > 0 && (
-              <div style={{ marginTop: 14, height: 8, background: 'rgba(255,249,245,0.1)', borderRadius: 4, overflow: 'hidden' }}>
-                <div
-                  style={{
-                    height: '100%',
-                    width: `${overallPct}%`,
-                    background: overallPct > 100 ? 'var(--red)' : 'var(--accent)',
-                    borderRadius: 4,
-                    transition: 'width 0.4s cubic-bezier(0.22,1,0.36,1)',
-                  }}
-                />
+            {(overallLimit || totalCatBudget) > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <Bar pct={overallPct || (totalSpent / totalCatBudget) * 100} tone="gold" />
               </div>
             )}
           </div>
-        </div>
-
-        {/* CATEGORY BUDGETS */}
-        <div className="section-title">Category Budgets</div>
-        {catRows.length === 0 ? (
-          <div className="empty-row">No category spend or budgets yet for {monthLabel}.</div>
-        ) : (
-          <div className="grid-2">
-            {catRows.map(r => (
-              <div key={r.id} className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div className="stat-label">
-                    {categoryIcon(r.id)} {categoryLabel(r.id)}
-                  </div>
-                  {r.limit > 0 && (
-                    <span className={`pill ${r.pct > 100 ? 'red' : r.pct > 80 ? 'amber' : 'green'}`}>
-                      {r.pct.toFixed(0)}%
-                    </span>
-                  )}
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', margin: '10px 0 8px' }}>
-                  <span className="mono" style={{ fontSize: 18, fontWeight: 600 }}>{money(r.spent)}</span>
-                  <span className="mono" style={{ color: 'var(--text-dim)', fontSize: 12 }}>
-                    {r.limit > 0 ? `of ${money(r.limit, { cents: false })}` : 'no budget'}
-                  </span>
-                </div>
-                {r.limit > 0 && (
-                  <div className="progress">
-                    <div
-                      className={`progress-fill ${r.pct > 100 ? 'red' : r.pct > 80 ? 'amber' : 'green'}`}
-                      style={{ width: `${Math.min(100, r.pct)}%` }}
-                    />
-                  </div>
-                )}
-              </div>
-            ))}
+          <div className="card grow">
+            <div className="card-title">Subscriptions</div>
+            <div className="num" style={{ fontSize: 32, fontWeight: 600, marginTop: 6 }}>
+              {money(monthlySubCost)}
+              <span className="muted" style={{ fontSize: 16, fontWeight: 500 }}>/mo</span>
+            </div>
+            <div className="muted small" style={{ marginTop: 8 }}>
+              {subs.data.filter(s => s.active).length} active · {money(monthlySubCost * 12)} per year
+            </div>
           </div>
-        )}
-
-        {/* SUBSCRIPTIONS */}
-        <div className="section-title">Subscriptions</div>
-        <div className="grid-3" style={{ marginBottom: 16 }}>
-          <Stat label="Monthly Cost"     value={money(monthlySubCost)}      tone="amber" />
-          <Stat label="Active"           value={String(subs.data.filter(s => s.active).length)} />
-          <Stat label="Yearly Total"     value={money(monthlySubCost * 12)} sub="Projected" />
         </div>
-        <div className="card" style={{ padding: 0 }}>
-          {subs.loading ? <Loading /> : subs.data.length === 0 ? (
-            <div className="empty-row">No subscriptions tracked.</div>
+
+        <div className="card">
+          <div className="card-head">
+            <div className="card-title">By category · {monthLabel}</div>
+          </div>
+          {catRows.length === 0 ? (
+            <div className="empty" style={{ padding: 18 }}>No spend or budgets yet for {monthLabel}.</div>
           ) : (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Service</th>
-                  <th>Card</th>
-                  <th>Cycle</th>
-                  <th>Category</th>
-                  <th className="num">Amount</th>
-                </tr>
-              </thead>
+            <div className="col gap-16" style={{ marginTop: 8 }}>
+              {catRows.map(r => (
+                <div key={r.id}>
+                  <div className="row between center" style={{ marginBottom: 8 }}>
+                    <div className="row center gap-12">
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: catColor(r.id) + '22', color: catColor(r.id), display: 'grid', placeItems: 'center' }}>
+                        <Icon name={catIconName(r.id)} size={16} />
+                      </div>
+                      <div>
+                        <div className="bold">{categoryLabel(r.id)}</div>
+                        <div className="muted tiny">
+                          {money(r.spent)}{r.limit > 0 && <> of {money(r.limit, { cents: false })}{r.over && <> · {money(r.spent - r.limit)} over</>}</>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="num bold" style={{ color: r.over ? 'var(--raspberry-300)' : 'inherit' }}>
+                      {r.limit > 0 ? `${Math.round(r.pct)}%` : '—'}
+                    </div>
+                  </div>
+                  {r.limit > 0 && <Bar pct={r.pct} tone={r.over ? 'warn' : 'gold'} />}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="card-head">
+            <div className="card-title">Subscriptions</div>
+            <button className="btn sm" onClick={() => setShowSub(true)} disabled={!userId}>
+              <Icon name="plus" size={12} /> Add
+            </button>
+          </div>
+          {subs.loading ? <Loading /> : subs.data.length === 0 ? (
+            <div className="empty">No subscriptions tracked.</div>
+          ) : (
+            <table className="tbl">
+              <thead><tr><th>Service</th><th>Card</th><th>Cycle</th><th>Debit Day</th><th>Category</th><th className="right">Amount</th></tr></thead>
               <tbody>
                 {subs.data.map(s => {
-                  const card = s.card_id ? cardById.get(s.card_id) : undefined;
+                  const c = s.card_id ? cardById.get(s.card_id) : undefined;
                   return (
                     <tr key={s.id}>
-                      <td>
-                        <div style={{ fontWeight: 600 }}>{s.name}</div>
-                        {!s.active && <span className="pill" style={{ marginTop: 4 }}>Paused</span>}
-                      </td>
-                      <td>{card ? `${card.name} •••• ${card.last4}` : '—'}</td>
-                      <td><span className="pill">{s.cycle}</span></td>
-                      <td>
-                        {s.category && CATEGORY_META[s.category] ? (
-                          <>{categoryIcon(s.category)} {categoryLabel(s.category)}</>
-                        ) : '—'}
-                      </td>
-                      <td className="num">{money(s.amount)}</td>
+                      <td className="bold">{s.name}{!s.active && <span className="chip" style={{ marginLeft: 6, fontSize: 10 }}>Paused</span>}</td>
+                      <td className="muted">{c ? c.name : '—'}</td>
+                      <td><span className="chip">{s.cycle}</span></td>
+                      <td className="mono">{s.debit_day ?? '—'}</td>
+                      <td>{s.category && CATEGORY_META[s.category]
+                        ? <span className="row center gap-8"><span className="cat-dot" style={{ background: catColor(s.category) }} />{categoryLabel(s.category)}</span>
+                        : '—'}</td>
+                      <td className="right num">{money(s.amount)}</td>
                     </tr>
                   );
                 })}
@@ -214,20 +203,6 @@ export default function BudgetScreen() {
   );
 }
 
-function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'green' | 'red' | 'amber' }) {
-  const color = tone === 'green' ? 'var(--green)'
-              : tone === 'red'   ? 'var(--red)'
-              : tone === 'amber' ? 'var(--amber)'
-              : undefined;
-  return (
-    <div className="card">
-      <div className="stat-label">{label}</div>
-      <div className="stat-value" style={color ? { color } : undefined}>{value}</div>
-      {sub && <div className="stat-sub">{sub}</div>}
-    </div>
-  );
-}
-
 function Loading() {
-  return <div className="empty-row"><span className="spinner" />Loading…</div>;
+  return <div className="empty"><span className="spinner" />Loading…</div>;
 }

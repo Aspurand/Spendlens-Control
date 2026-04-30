@@ -16,10 +16,24 @@ const usdNoCents = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 0,
 });
 
-export function money(n: number | string | null | undefined, opts: { cents?: boolean } = {}): string {
+export function money(n: number | string | null | undefined, opts: { cents?: boolean; sign?: boolean } = {}): string {
   const v = typeof n === 'string' ? parseFloat(n) : n;
   if (v == null || Number.isNaN(v)) return '—';
-  return opts.cents === false ? usdNoCents.format(v) : usd.format(v);
+  const fmt = opts.cents === false ? usdNoCents : usd;
+  const out = fmt.format(Math.abs(v));
+  if (v < 0) return '−' + out;
+  return opts.sign && v > 0 ? '+' + out : out;
+}
+
+/** Split a money value into sign + dollars + cents so a Stat can render
+ *  cents at a smaller weight (matches the design's editorial treatment). */
+export function splitMoney(n: number | string | null | undefined): { sign: string; dollars: string; cents: string } {
+  const v = typeof n === 'string' ? parseFloat(n) : n;
+  if (v == null || Number.isNaN(v)) return { sign: '', dollars: '$—', cents: '' };
+  const abs = Math.abs(v);
+  const dollars = '$' + Math.floor(abs).toLocaleString('en-US');
+  const cents = (abs - Math.floor(abs)).toFixed(2).slice(1); // ".42"
+  return { sign: v < 0 ? '−' : '', dollars, cents };
 }
 
 export function num(n: number | string | null | undefined): number {
