@@ -24,7 +24,7 @@ const NAV: { group: string; items: { to: string; label: string; icon: IconName }
 ];
 
 export function Sidebar() {
-  const { session, signIn, signOut, loading } = useAuth();
+  const { session, signIn, signOut, loading, error } = useAuth();
   const user = session?.user;
   const meta = (user?.user_metadata as Record<string, unknown> | undefined) ?? {};
   const fullName = (meta.full_name as string) || (meta.name as string) || user?.email || '';
@@ -83,9 +83,24 @@ export function Sidebar() {
             </button>
           </div>
         ) : (
-          <button onClick={signIn} className="sidebar-signin">
-            Sign in with Google
-          </button>
+          <>
+            <button onClick={signIn} className="sidebar-signin">
+              Sign in with Google
+            </button>
+            {error && (
+              <div style={{
+                margin: '8px 12px 0',
+                padding: '8px 10px',
+                background: 'rgba(193, 58, 87, 0.18)',
+                color: '#F2A2B0',
+                borderRadius: 8,
+                fontSize: 11,
+                lineHeight: 1.4,
+              }}>
+                {error}
+              </div>
+            )}
+          </>
         )
       )}
 
